@@ -77,15 +77,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "StrayPulse — Care for stray animals in your area" },
+      {
+        name: "description",
+        content:
+          "StrayPulse helps you monitor, follow, and care for stray animals nearby with live health data from smart tags.",
+      },
+      { name: "author", content: "StrayPulse" },
+      { property: "og:title", content: "StrayPulse — Care for stray animals in your area" },
+      {
+        property: "og:description",
+        content:
+          "Monitor, follow, and care for stray animals nearby with live health data from smart tags.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
-    ],
     links: [
       {
         rel: "stylesheet",
