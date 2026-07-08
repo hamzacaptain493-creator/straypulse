@@ -1,70 +1,83 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Heart, Thermometer, Activity, Battery, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/loading-spinner";
-import { AnimalCard, type Animal } from "@/components/animal-card";
 import { EmptyState } from "@/components/empty-state";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
+import {
+  followAnimal,
+  listAnimals,
+  listFollowedAnimalIds,
+  logAnimalInteraction,
+  unfollowAnimal,
+  type DbAnimal,
+} from "@/lib/services";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/animals")({
   component: AnimalsPage,
 });
 
-type DbAnimal = {
-  id: string;
-  name: string;
-  species: string;
-  description: string | null;
-  image_url: string | null;
-  health_status: string | null;
-  heart_rate: number | null;
-  temperature: number | null;
-  oxygen_level: number | null;
+const statusStyles: Record<string, string> = {
+  healthy: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+  needs_attention: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+  critical: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400",
 };
 
-function mapStatus(s: string | null): Animal["status"] {
+function statusLabel(s: string | null) {
   if (s === "critical") return "Critical";
-  if (s === "needs_attention" || s === "attention") return "Needs attention";
+  if (s === "needs_attention") return "Needs attention";
   return "Healthy";
 }
 
-function toAnimal(r: DbAnimal): Animal {
-  return {
-    id: r.id,
-    name: r.name,
-    species: r.species,
-    age: r.description ?? "—",
-    status: mapStatus(r.health_status),
-    temperature: r.temperature != null ? `${r.temperature}°C` : "—",
-    heartRate: r.heart_rate != null ? `${r.heart_rate} bpm` : "—",
-    battery: r.oxygen_level ?? 0,
-    photo: r.image_url ?? undefined,
-  };
-}
-
 function AnimalsPage() {
-  const [animals, setAnimals] = useState<Animal[]>([]);
+  const { user } = useAuth();
+  const [animals, setAnimals] = useState<DbAnimal[]>([]);
+  const [followed, setFollowed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("animals")
-        .select("id,name,species,description,image_url,health_status,heart_rate,temperature,oxygen_level")
-        .order("created_at", { ascending: false });
-      if (cancelled) return;
-      if (error) setError(error.message);
-      else setAnimals((data as DbAnimal[]).map(toAnimal));
+  const load = async () => {
+    setLoading(true);
+    try {
+      const rows = await listAnimals();
+      setAnimals(rows);
+      if (user) {
+        const ids = await listFollowedAnimalIds(user.id);
+        setFollowed(new Set(ids));
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load animals");
+    } finally {
       setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const toggleFollow = async (id: string) => {
+    if (!user) return;
+    const isFollowed = followed.has(id);
+    const next = new Set(followed);
+    if (isFollowed) next.delete(id);
+    else next.add(id);
+    setFollowed(next);
+    try {
+      if (isFollowed) await unfollowAnimal(user.id, id);
+      else await followAnimal(user.id, id);
+      await logAnimalInteraction(user.id, id).catch(() => {});
+    } catch {
+      // revert
+      const revert = new Set(followed);
+      setFollowed(revert);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -81,11 +94,17 @@ function AnimalsPage() {
       ) : error ? (
         <EmptyState title="Couldn't load animals" description={error} />
       ) : animals.length === 0 ? (
-        <EmptyState title="No animals yet" description="Be the first to register a stray." />
+        <EmptyState title="No animals yet" />
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {animals.map((a) => (
-            <AnimalCard key={a.id} animal={a} />
+            <AnimalCardDb
+              key={a.id}
+              a={a}
+              followed={followed.has(a.id)}
+              onFollow={() => toggleFollow(a.id)}
+              canFollow={!!user}
+            />
           ))}
         </div>
       )}
@@ -103,5 +122,78 @@ function AnimalsPage() {
         </Button>
       </Card>
     </div>
+  );
+}
+
+function AnimalCardDb({
+  a,
+  followed,
+  onFollow,
+  canFollow,
+}: {
+  a: DbAnimal;
+  followed: boolean;
+  onFollow: () => void;
+  canFollow: boolean;
+}) {
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="aspect-[4/3] w-full bg-muted">
+        {a.image_url ? (
+          <img src={a.image_url} alt={a.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-muted-foreground">
+            <Activity className="h-8 w-8" />
+          </div>
+        )}
+      </div>
+      <div className="space-y-4 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-lg font-semibold">{a.name}</h3>
+            <p className="truncate text-sm text-muted-foreground">
+              {a.species}
+              {a.description ? ` · ${a.description}` : ""}
+            </p>
+          </div>
+          <Badge
+            className={cn(statusStyles[a.health_status ?? "healthy"])}
+            variant="secondary"
+          >
+            {statusLabel(a.health_status)}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="rounded-lg bg-muted p-2">
+            <Thermometer className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+            <div className="font-medium">
+              {a.temperature != null ? `${a.temperature}°C` : "—"}
+            </div>
+          </div>
+          <div className="rounded-lg bg-muted p-2">
+            <Heart className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+            <div className="font-medium">
+              {a.heart_rate != null ? `${a.heart_rate} bpm` : "—"}
+            </div>
+          </div>
+          <div className="rounded-lg bg-muted p-2">
+            <Battery className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+            <div className="font-medium">
+              {a.oxygen_level != null ? `${a.oxygen_level}%` : "—"}
+            </div>
+          </div>
+        </div>
+
+        <Button
+          className="w-full"
+          variant={followed ? "outline" : "default"}
+          onClick={onFollow}
+          disabled={!canFollow}
+        >
+          {!canFollow ? "Sign in to follow" : followed ? "Following" : "Follow"}
+        </Button>
+      </div>
+    </Card>
   );
 }

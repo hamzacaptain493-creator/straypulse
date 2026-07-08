@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { upsertUserPreferences } from "@/lib/services";
 import {
   User,
   Palette,
@@ -115,6 +117,11 @@ function AccountTab() {
 
 function CustomizationTab() {
   const { dark, toggleDark, accentId, selectAccent } = useTheme();
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!user) return;
+    upsertUserPreferences(user.id, dark ? "dark" : "light").catch(() => {});
+  }, [dark, user]);
 
   return (
     <div className="space-y-6">
