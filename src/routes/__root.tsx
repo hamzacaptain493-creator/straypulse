@@ -89,10 +89,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         property: "og:description",
         content:
-          "Monitor, follow, and care for stray animals nearby with live health data from smart tags.",
+          "StrayPulse helps you monitor, follow, and care for stray animals nearby with live health data from smart tags.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "StrayPulse — Care for stray animals in your area" },
+      { name: "twitter:description", content: "StrayPulse helps you monitor, follow, and care for stray animals nearby with live health data from smart tags." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/YT1y3n24bVei4axypyXp4FXOz3Y2/social-images/social-1783511326636-Screenshot_2026-07-08_171021.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/YT1y3n24bVei4axypyXp4FXOz3Y2/social-images/social-1783511326636-Screenshot_2026-07-08_171021.webp" },
     ],
     links: [
       {
