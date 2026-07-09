@@ -39,10 +39,13 @@ export const Route = createFileRoute("/_app/")({
   component: HomePage,
 });
 
+type Stats = { total: number; healthy: number; critical: number; users: number };
+
 function HomePage() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<DbPost[]>([]);
   const [profiles, setProfiles] = useState<Record<string, DbProfile>>({});
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showComposer, setShowComposer] = useState(false);
@@ -51,12 +54,17 @@ function HomePage() {
     setLoading(true);
     setError(null);
     try {
-      const rows = await listPosts();
+      const [rows, s] = await Promise.all([listPosts(), getDashboardStats().catch((e) => {
+        console.error("dashboard stats failed", e);
+        return null;
+      })]);
       setPosts(rows);
+      setStats(s);
       const ids = Array.from(new Set(rows.map((p) => p.user_id)));
       const profs = await listProfilesByIds(ids);
       setProfiles(Object.fromEntries(profs.map((p) => [p.id, p])));
     } catch (e) {
+      console.error("home feed failed", e);
       setError(e instanceof Error ? e.message : "Failed to load feed");
     } finally {
       setLoading(false);
@@ -68,13 +76,25 @@ function HomePage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">
+          Live overview of the StrayPulse community.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile icon={PawPrint} label="Total animals" value={stats?.total} tone="default" />
+        <StatTile icon={Activity} label="Healthy" value={stats?.healthy} tone="success" />
+        <StatTile icon={AlertTriangle} label="Critical" value={stats?.critical} tone="danger" />
+        <StatTile icon={Users} label="Community" value={stats?.users} tone="default" />
+      </div>
+
+      <div className="flex items-center justify-between pt-2">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Home feed</h1>
-          <p className="text-sm text-muted-foreground">
-            Latest updates from the StrayPulse community.
-          </p>
+          <h2 className="text-xl font-semibold">Community feed</h2>
+          <p className="text-xs text-muted-foreground">Latest posts from members.</p>
         </div>
         {user && (
           <Button onClick={() => setShowComposer((v) => !v)}>
@@ -83,15 +103,6 @@ function HomePage() {
           </Button>
         )}
       </div>
-
-      {!user && (
-        <Card className="p-5 text-sm">
-          <Link to="/auth" className="font-medium text-primary hover:underline">
-            Sign in
-          </Link>{" "}
-          to create posts, comment, and like.
-        </Card>
-      )}
 
       {user && showComposer && (
         <PostComposer
