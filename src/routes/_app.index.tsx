@@ -1,6 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Heart, MessageCircle, PawPrint, Plus, Send, Trash2 } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  PawPrint,
+  Plus,
+  Send,
+  Trash2,
+  Activity,
+  AlertTriangle,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +23,7 @@ import {
   createComment,
   createPost,
   deletePost,
+  getDashboardStats,
   hasLiked,
   listComments,
   listPosts,
