@@ -4,7 +4,7 @@ import { Shield } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { EmptyState } from "@/components/empty-state";
-import { useAuth } from "@/lib/auth";
+import { useAuth, DEV_MODE_BYPASS_AUTH } from "@/lib/auth";
 import { getUserRoles, listModerationLogs, type DbModerationLog } from "@/lib/services";
 
 export const Route = createFileRoute("/_app/moderation")({
