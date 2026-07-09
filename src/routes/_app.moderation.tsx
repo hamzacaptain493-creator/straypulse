@@ -4,7 +4,7 @@ import { Shield } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { EmptyState } from "@/components/empty-state";
-import { useAuth } from "@/lib/auth";
+import { useAuth, DEV_MODE_BYPASS_AUTH } from "@/lib/auth";
 import { getUserRoles, listModerationLogs, type DbModerationLog } from "@/lib/services";
 
 export const Route = createFileRoute("/_app/moderation")({
@@ -20,11 +20,13 @@ function ModerationPage() {
 
   useEffect(() => {
     (async () => {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
       try {
+        if (DEV_MODE_BYPASS_AUTH) {
+          setAllowed(true);
+          setLogs(await listModerationLogs());
+          return;
+        }
+        if (!user) return;
         const roles = await getUserRoles(user.id);
         const ok = roles.some((r) => r.role === "admin" || r.role === "moderator");
         setAllowed(ok);

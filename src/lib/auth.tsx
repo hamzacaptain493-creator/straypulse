@@ -45,11 +45,28 @@ async function ensureProfile(user: User) {
 }
 
 
+// TEMP: Development mode — bypass authentication so every page is accessible
+// without login. Flip to `false` (or remove) to restore real auth.
+export const DEV_MODE_BYPASS_AUTH = true;
+
+const DEV_MOCK_USER = {
+  id: "00000000-0000-0000-0000-000000000000",
+  email: "dev@straypulse.local",
+  user_metadata: { name: "Dev User" },
+  app_metadata: {},
+  aud: "authenticated",
+  created_at: new Date().toISOString(),
+} as unknown as User;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (DEV_MODE_BYPASS_AUTH) {
+      setLoading(false);
+      return;
+    }
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
@@ -58,21 +75,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
       if ((event === "SIGNED_IN" || event === "USER_UPDATED") && s?.user) {
-        // Defer so we don't block the auth callback.
         setTimeout(() => void ensureProfile(s.user), 0);
       }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  const user = DEV_MODE_BYPASS_AUTH ? DEV_MOCK_USER : session?.user ?? null;
+
   return (
     <Ctx.Provider
       value={{
         session,
-        user: session?.user ?? null,
+        user,
         loading,
         signOut: async () => {
-          await supabase.auth.signOut();
+          if (!DEV_MODE_BYPASS_AUTH) await supabase.auth.signOut();
         },
       }}
     >
