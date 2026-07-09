@@ -6,6 +6,7 @@ type AuthCtx = {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  isGuest: boolean;
   signOut: () => Promise<void>;
 };
 
@@ -13,8 +14,24 @@ const Ctx = createContext<AuthCtx>({
   session: null,
   user: null,
   loading: true,
+  isGuest: false,
   signOut: async () => {},
 });
+
+// TEMP: while auth is disabled we auto-sign-in as a Supabase anonymous user
+// (so RLS policies scoped to auth.uid() still let writes through). If the
+// project has anonymous sign-ins disabled we fall back to a mock user for
+// read-only browsing. Flip to `false` to restore the real login flow.
+export const DEV_MODE_BYPASS_AUTH = true;
+
+const DEV_MOCK_USER = {
+  id: "00000000-0000-0000-0000-000000000000",
+  email: "guest@straypulse.local",
+  user_metadata: { name: "Guest" },
+  app_metadata: {},
+  aud: "authenticated",
+  created_at: new Date().toISOString(),
+} as unknown as User;
 
 async function ensureProfile(user: User) {
   try {
@@ -28,10 +45,8 @@ async function ensureProfile(user: User) {
       (typeof window !== "undefined" && window.localStorage.getItem("pending_profile_name")) ||
       (user.user_metadata?.name as string | undefined) ||
       user.email ||
-      null;
-    const { error } = await supabase
-      .from("profiles")
-      .upsert({ id: user.id, name: pendingName });
+      "Guest";
+    const { error } = await supabase.from("profiles").upsert({ id: user.id, name: pendingName });
     if (error) {
       console.error("ensureProfile upsert failed", error);
       return;
@@ -44,44 +59,60 @@ async function ensureProfile(user: User) {
   }
 }
 
-
-// TEMP: Development mode — bypass authentication so every page is accessible
-// without login. Flip to `false` (or remove) to restore real auth.
-export const DEV_MODE_BYPASS_AUTH = true;
-
-const DEV_MOCK_USER = {
-  id: "00000000-0000-0000-0000-000000000000",
-  email: "dev@straypulse.local",
-  user_metadata: { name: "Dev User" },
-  app_metadata: {},
-  aud: "authenticated",
-  created_at: new Date().toISOString(),
-} as unknown as User;
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [guestFallback, setGuestFallback] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (DEV_MODE_BYPASS_AUTH) {
-      setLoading(false);
-      return;
-    }
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-      if (data.session?.user) void ensureProfile(data.session.user);
-    });
+    let mounted = true;
+
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      if (data.session) {
+        setSession(data.session);
+        setLoading(false);
+        void ensureProfile(data.session.user);
+        return;
+      }
+
+      if (!DEV_MODE_BYPASS_AUTH) {
+        setLoading(false);
+        return;
+      }
+
+      // No session yet — try Supabase anonymous sign-in so writes work under RLS.
+      try {
+        const { data: anon, error } = await supabase.auth.signInAnonymously();
+        if (error) throw error;
+        if (!mounted) return;
+        setSession(anon.session);
+        if (anon.user) void ensureProfile(anon.user);
+      } catch (err) {
+        console.warn("Anonymous sign-in unavailable — falling back to guest mock user.", err);
+        if (mounted) setGuestFallback(true);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
       if ((event === "SIGNED_IN" || event === "USER_UPDATED") && s?.user) {
         setTimeout(() => void ensureProfile(s.user), 0);
       }
     });
-    return () => sub.subscription.unsubscribe();
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
-  const user = DEV_MODE_BYPASS_AUTH ? DEV_MOCK_USER : session?.user ?? null;
+  const user = session?.user ?? (guestFallback ? DEV_MOCK_USER : null);
+  const isGuest = DEV_MODE_BYPASS_AUTH && (guestFallback || !!session?.user?.is_anonymous);
 
   return (
     <Ctx.Provider
@@ -89,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user,
         loading,
+        isGuest,
         signOut: async () => {
           if (!DEV_MODE_BYPASS_AUTH) await supabase.auth.signOut();
         },
