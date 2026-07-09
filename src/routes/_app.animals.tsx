@@ -138,19 +138,31 @@ function AnimalCardDb({
 }) {
   return (
     <Card className="overflow-hidden p-0">
-      <div className="aspect-[4/3] w-full bg-muted">
-        {a.image_url ? (
-          <img src={a.image_url} alt={a.name} className="h-full w-full object-cover" />
-        ) : (
-          <div className="grid h-full w-full place-items-center text-muted-foreground">
-            <Activity className="h-8 w-8" />
-          </div>
-        )}
-      </div>
+      <Link
+        to="/animals/$id"
+        params={{ id: a.id }}
+        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <div className="aspect-[4/3] w-full bg-muted">
+          {a.image_url ? (
+            <img src={a.image_url} alt={a.name} className="h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full w-full place-items-center text-muted-foreground">
+              <Activity className="h-8 w-8" />
+            </div>
+          )}
+        </div>
+      </Link>
       <div className="space-y-4 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="truncate text-lg font-semibold">{a.name}</h3>
+            <Link
+              to="/animals/$id"
+              params={{ id: a.id }}
+              className="block truncate text-lg font-semibold hover:text-primary"
+            >
+              {a.name}
+            </Link>
             <p className="truncate text-sm text-muted-foreground">
               {a.species}
               {a.description ? ` · ${a.description}` : ""}
