@@ -16,6 +16,35 @@ const Ctx = createContext<AuthCtx>({
   signOut: async () => {},
 });
 
+async function ensureProfile(user: User) {
+  try {
+    const { data: existing } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (existing) return;
+    const pendingName =
+      (typeof window !== "undefined" && window.localStorage.getItem("pending_profile_name")) ||
+      (user.user_metadata?.name as string | undefined) ||
+      user.email ||
+      null;
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({ id: user.id, name: pendingName });
+    if (error) {
+      console.error("ensureProfile upsert failed", error);
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("pending_profile_name");
+    }
+  } catch (err) {
+    console.error("ensureProfile error", err);
+  }
+}
+
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,9 +53,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
+      if (data.session?.user) void ensureProfile(data.session.user);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
+      if ((event === "SIGNED_IN" || event === "USER_UPDATED") && s?.user) {
+        // Defer so we don't block the auth callback.
+        setTimeout(() => void ensureProfile(s.user), 0);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
