@@ -103,6 +103,42 @@ export async function getAnimal(id: string) {
   if (error) throw error;
   return data as DbAnimal | null;
 }
+export async function countAnimalFollowers(animalId: string) {
+  const { count, error } = await supabase
+    .from("follows")
+    .select("id", { count: "exact", head: true })
+    .eq("animal_id", animalId);
+  if (error) throw error;
+  return count ?? 0;
+}
+export async function getDashboardStats() {
+  const [{ count: total, error: e1 }, { count: healthy, error: e2 }, { count: critical, error: e3 }, { count: users, error: e4 }] =
+    await Promise.all([
+      supabase.from("animals").select("id", { count: "exact", head: true }),
+      supabase.from("animals").select("id", { count: "exact", head: true }).eq("health_status", "healthy"),
+      supabase.from("animals").select("id", { count: "exact", head: true }).eq("health_status", "critical"),
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+    ]);
+  if (e1 || e2 || e3 || e4) {
+    const err = e1 || e2 || e3 || e4;
+    throw err;
+  }
+  return {
+    total: total ?? 0,
+    healthy: healthy ?? 0,
+    critical: critical ?? 0,
+    users: users ?? 0,
+  };
+}
+export async function countUnreadNotifications(userId: string) {
+  const { count, error } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("read", false);
+  if (error) throw error;
+  return count ?? 0;
+}
 
 /* ============ Posts ============ */
 export async function listPosts() {

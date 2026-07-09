@@ -18,6 +18,7 @@ import { Route as AppProfileRouteImport } from './routes/_app.profile'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
 import { Route as AppModerationRouteImport } from './routes/_app.moderation'
 import { Route as AppAnimalsRouteImport } from './routes/_app.animals'
+import { Route as AppAnimalsIdRouteImport } from './routes/_app.animals.$id'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -63,38 +64,46 @@ const AppAnimalsRoute = AppAnimalsRouteImport.update({
   path: '/animals',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAnimalsIdRoute = AppAnimalsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppAnimalsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/auth': typeof AuthRoute
-  '/animals': typeof AppAnimalsRoute
+  '/animals': typeof AppAnimalsRouteWithChildren
   '/moderation': typeof AppModerationRoute
   '/notifications': typeof AppNotificationsRoute
   '/profile': typeof AppProfileRoute
   '/scan': typeof AppScanRoute
   '/settings': typeof AppSettingsRoute
+  '/animals/$id': typeof AppAnimalsIdRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
-  '/animals': typeof AppAnimalsRoute
+  '/animals': typeof AppAnimalsRouteWithChildren
   '/moderation': typeof AppModerationRoute
   '/notifications': typeof AppNotificationsRoute
   '/profile': typeof AppProfileRoute
   '/scan': typeof AppScanRoute
   '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
+  '/animals/$id': typeof AppAnimalsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
-  '/_app/animals': typeof AppAnimalsRoute
+  '/_app/animals': typeof AppAnimalsRouteWithChildren
   '/_app/moderation': typeof AppModerationRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/scan': typeof AppScanRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/animals/$id': typeof AppAnimalsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/scan'
     | '/settings'
+    | '/animals/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/scan'
     | '/settings'
     | '/'
+    | '/animals/$id'
   id:
     | '__root__'
     | '/_app'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/_app/scan'
     | '/_app/settings'
     | '/_app/'
+    | '/_app/animals/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -200,11 +212,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAnimalsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/animals/$id': {
+      id: '/_app/animals/$id'
+      path: '/$id'
+      fullPath: '/animals/$id'
+      preLoaderRoute: typeof AppAnimalsIdRouteImport
+      parentRoute: typeof AppAnimalsRoute
+    }
   }
 }
 
+interface AppAnimalsRouteChildren {
+  AppAnimalsIdRoute: typeof AppAnimalsIdRoute
+}
+
+const AppAnimalsRouteChildren: AppAnimalsRouteChildren = {
+  AppAnimalsIdRoute: AppAnimalsIdRoute,
+}
+
+const AppAnimalsRouteWithChildren = AppAnimalsRoute._addFileChildren(
+  AppAnimalsRouteChildren,
+)
+
 interface AppRouteChildren {
-  AppAnimalsRoute: typeof AppAnimalsRoute
+  AppAnimalsRoute: typeof AppAnimalsRouteWithChildren
   AppModerationRoute: typeof AppModerationRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppProfileRoute: typeof AppProfileRoute
@@ -214,7 +245,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppAnimalsRoute: AppAnimalsRoute,
+  AppAnimalsRoute: AppAnimalsRouteWithChildren,
   AppModerationRoute: AppModerationRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppProfileRoute: AppProfileRoute,
@@ -232,3 +263,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
