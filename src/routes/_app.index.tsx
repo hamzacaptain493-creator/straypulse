@@ -340,3 +340,33 @@ function PostCard({
     </Card>
   );
 }
+
+function StatTile({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number | undefined;
+  tone: "default" | "success" | "danger";
+}) {
+  const toneClass =
+    tone === "success"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : tone === "danger"
+        ? "text-red-600 dark:text-red-400"
+        : "text-foreground";
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
+        <Icon className={`h-4 w-4 ${toneClass}`} />
+      </div>
+      <div className={`mt-2 text-2xl font-bold ${toneClass}`}>
+        {value == null ? "—" : value.toLocaleString()}
+      </div>
+    </Card>
+  );
+}
