@@ -35,11 +35,29 @@ function AuthPage() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: { name: name || email },
+          },
         });
         if (error) throw error;
-        if (data.user) {
-          await supabase.from("profiles").upsert({ id: data.user.id, name: name || email });
+
+        // Stash desired name so we can upsert the profile once a session exists.
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("pending_profile_name", name || email);
+        }
+
+        if (data.session && data.user) {
+          // Session active immediately — safe to write under RLS.
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .upsert({ id: data.user.id, name: name || email });
+          if (profileError) throw profileError;
+        } else {
+          // No session yet: email confirmation required. Do NOT insert into profiles (RLS 401).
+          setError(
+            "Check your email to confirm your account. You'll be signed in after confirming.",
+          );
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
